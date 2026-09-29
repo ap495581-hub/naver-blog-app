@@ -3,10 +3,9 @@ import google.generativeai as genai
 
 st.set_page_config(page_title="리치맘 R 블로그 도우미", page_icon="✍️", layout="centered")
 
-# 사이드바: Gemini API Key만 입력
 with st.sidebar:
     st.header("⚙️ 설정")
-    gemini_key = st.text_input("Gemini API Key", type="password", help="Google AI Studio에서 무료 발급받은 키를 입력하세요.")
+    gemini_key = st.text_input("Gemini API Key", type="password", help="Google AI Studio에서 발급받은 키를 입력하세요.")
 
 st.title("✍️ 리치맘 R 블로그 생성기")
 st.caption("소재만 간단히 적으면 아내분의 평소 문체와 30개 해시태그가 완비된 원고를 생성합니다.")
@@ -22,10 +21,23 @@ if st.button("✨ 블로그 글 생성하기", type="primary", use_container_wid
     elif not item_name:
         st.error("제품명 또는 장소명을 입력해 주세요!")
     else:
-        with st.spinner("아내분의 블로그 문체와 30개 해시태그를 반영하여 원고를 작성 중입니다..."):
+        with st.spinner("Gemini 3.8 Flash로 아내분의 블로그 문체와 30개 해시태그를 작성 중입니다..."):
             try:
                 genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                
+                # 최신 3.8 Flash 우선 탐색 및 매칭
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                target_model = None
+                for cand in ["gemini-3.8-flash", "gemini-3-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                    matched = [m for m in available_models if cand in m]
+                    if matched:
+                        target_model = matched[0]
+                        break
+                if not target_model:
+                    target_model = available_models[0] if available_models else "models/gemini-3.8-flash"
+
+                model = genai.GenerativeModel(target_model)
+                
                 prompt = f"""당신은 네이버 블로그 '리치맘 R'의 전담 작가입니다.
 규칙:
 1. 분량: 반드시 550자 이상의 풍성한 '긴 글' 형태
@@ -41,7 +53,7 @@ if st.button("✨ 블로그 글 생성하기", type="primary", use_container_wid
 - 메모: {notes}"""
                 response = model.generate_content(prompt)
                 st.session_state["post_text"] = response.text
-                st.success("원고가 완성되었습니다! 아래에서 복사해 사용하세요.")
+                st.success(f"원고 완성! (적용 모델: {target_model.replace('models/', '')})")
             except Exception as e:
                 st.error(f"생성 실패: {str(e)}")
 
